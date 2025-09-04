@@ -1,0 +1,13 @@
+{
+  "name": "etf-flow-capture",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.js",
+    "playwright:install": "npx playwright install --with-deps chromium"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.47.2"
+  }
+}
