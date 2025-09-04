@@ -9,12 +9,12 @@ const TARGET_URL = "https://cryptokorea.net/etf-flow/";
 // 1안) 가장 안정적인 방법: 특정 영역을 감싸는 요소에 id를 달아 선택
 //    예) <section id="btc-etf-flow"> ... </section>
 //        <section id="eth-etf-flow"> ... </section>
-// const SELECTOR_ONE = 'section#btc-etf-flow';
-// const SELECTOR_TWO = 'section#eth-etf-flow';
+const SELECTOR_ONE = 'section#btc-etf-flow';
+const SELECTOR_TWO = 'section#eth-etf-flow';
 
 // 2안) id가 없으면, "화면에 보이는 고정 텍스트"로 찾기
-const SELECTOR_ONE = 'section:has-text("Bitcoin ETF Flow(US$m)")';
-const SELECTOR_TWO = 'section:has-text("Ethereum ETF Flow(US$m)")';
+// const SELECTOR_ONE = 'section:has-text("Bitcoin ETF Flow(US$m)")';
+// const SELECTOR_TWO = 'section:has-text("Ethereum ETF Flow(US$m)")';
 
 // 3안) 정말 셀렉터를 못 잡겠으면 "좌표 캡처(clip)"로 대체 (아래 주석 해제해서 사용)
 //    const CLIP_ONE = { x: 80,  y: 600,  width: 1200, height: 600 };
