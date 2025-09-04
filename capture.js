@@ -1,4 +1,4 @@
-// capture.js (최적화 미니멀 버전)
+// capture.js — 좌표(clip) 캡처 최적화 버전
 import { chromium } from "@playwright/test";
 import fs from "fs";
 import path from "path";
@@ -17,32 +17,59 @@ function kstStamp() {
     minute: "2-digit",
     second: "2-digit"
   });
-  const s = fmt.format(t);                // "YYYY-MM-DD HH:MM:SS"
+  const s = fmt.format(t); // "YYYY-MM-DD HH:MM:SS"
   const [date, time] = s.split(" ");
   return { date, time: time.replaceAll(":", "") };
 }
 
-// 제목(h1~h6) 포함 텍스트로 가장 가까운 div/section 상자 스크린샷
-async function screenshotCardByHeading(page, headingText, outPath) {
-  const heading = page.locator(
-    `xpath=//h1|//h2|//h3|//h4|//h5|//h6[contains(normalize-space(.), "${headingText}")]`
-  ).first();
-
-  await heading.waitFor({ state: "visible", timeout: 15000 });
-
-  const cardHandle = await heading.evaluateHandle((el) => {
-    let cur = el;
-    while (cur && cur.parentElement) {
-      cur = cur.parentElement;
-      if (cur.tagName === "DIV" || cur.tagName === "SECTION") return cur;
+/**
+ * 제목(h1~h6)에 특정 텍스트가 "포함"된 요소를 찾고,
+ * 가장 가까운 상위 div/section의 페이지 좌표(x,y,w,h)를 반환.
+ * 좌표는 clip 캡처에 바로 사용 가능.
+ * - headingText: 예) "Bitcoin ETF Flow" (괄호/단위 변동 대비 앞부분만)
+ * - pad: {t,r,b,l} 여백(px)로 테두리 살짝 넉넉히 찍고 싶을 때
+ */
+async function rectByHeading(page, headingText, pad = { t: 12, r: 12, b: 12, l: 12 }) {
+  return await page.evaluate(({ headingText, pad }) => {
+    // 1) 제목 찾기 (h1~h6 중 텍스트 포함)
+    const xpath = `//h1|//h2|//h3|//h4|//h5|//h6`;
+    const it = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    let heading = null;
+    for (let i = 0; i < it.snapshotLength; i++) {
+      const el = it.snapshotItem(i);
+      if (el && el.textContent && el.textContent.trim().includes(headingText)) {
+        heading = el;
+        break;
+      }
     }
-    return el;
-  });
+    if (!heading) throw new Error(`Heading not found for text: ${headingText}`);
 
-  const card = page.locator(cardHandle.asElement());
-  await card.scrollIntoViewIfNeeded();
-  await page.waitForTimeout(300);
-  await card.screenshot({ path: outPath });
+    // 2) 가장 가까운 상위 div/section을 카드로 간주
+    let card = heading;
+    while (card && card.parentElement) {
+      card = card.parentElement;
+      if (card && (card.tagName === "DIV" || card.tagName === "SECTION")) break;
+    }
+    if (!card) card = heading; // 안전장치
+
+    // 3) 페이지 좌표 계산
+    const r = card.getBoundingClientRect();
+    const x = Math.max(0, Math.floor(r.left + window.scrollX) - pad.l);
+    const y = Math.max(0, Math.floor(r.top + window.scrollY) - pad.t);
+    const w = Math.ceil(r.width) + pad.l + pad.r;
+    const h = Math.ceil(r.height) + pad.t + pad.b;
+
+    // 4) 페이지 전체 크기를 넘어가면 잘라냄
+    const pageW = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth);
+    const pageH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+
+    return {
+      x,
+      y,
+      width: Math.min(w, pageW - x),
+      height: Math.min(h, pageH - y)
+    };
+  }, { headingText, pad });
 }
 
 (async () => {
@@ -52,8 +79,8 @@ async function screenshotCardByHeading(page, headingText, outPath) {
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    viewport: { width: 1600, height: 2000 },
-    deviceScaleFactor: 2
+    viewport: { width: 1600, height: 2200 }, // 넉넉한 데스크톱 뷰포트
+    deviceScaleFactor: 2                      // 선명도 ↑
   });
   const page = await context.newPage();
 
@@ -64,9 +91,12 @@ async function screenshotCardByHeading(page, headingText, outPath) {
     page.waitForTimeout(5000)
   ]);
 
-  // 제목 앞부분만 매칭해 단위 표기 변경에도 견고
-  await screenshotCardByHeading(page, "Bitcoin ETF Flow",  path.join(outDir, `BTC_${date}_${time}.png`));
-  await screenshotCardByHeading(page, "Ethereum ETF Flow", path.join(outDir, `ETH_${date}_${time}.png`));
+  // ===== 좌표 계산 → clip 캡처 =====
+  const btcClip = await rectByHeading(page, "Bitcoin ETF Flow");
+  await page.screenshot({ path: path.join(outDir, `BTC_${date}_${time}.png`), clip: btcClip });
+
+  const ethClip = await rectByHeading(page, "Ethereum ETF Flow");
+  await page.screenshot({ path: path.join(outDir, `ETH_${date}_${time}.png`), clip: ethClip });
 
   await browser.close();
   console.log("✅ 캡처 완료:", outDir);
