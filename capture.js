@@ -2,6 +2,34 @@ import { chromium } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 
+// 제목 텍스트로 가장 가까운 카드(div/section) 요소를 찾아 스크린샷
+async function screenshotCardByHeading(page, headingText, outPath) {
+  // 1) 제목(헤딩) 찾기: 'Bitcoin ETF Flow' / 'Ethereum ETF Flow' 앞부분만 잡아 변동 여유 확보
+  const heading = page.locator(`xpath=//h1|//h2|//h3|//h4|//h5|//h6[
+    contains(normalize-space(.), "${headingText}")
+  ]`).first();
+
+  await heading.waitFor({ state: 'visible', timeout: 15000 });
+
+  // 2) 가장 가까운 카드 컨테이너(div 또는 section) 찾기
+  //    - 보통 차트는 카드(div/section) 안에 들어가 있으니, 가장 가까운 상위 div/section을 캡처
+  const card = await heading.evaluateHandle((el) => {
+    // 위로 올라가며 div/section을 찾고, 첫 번째로 만나는 요소를 사용
+    let cur = el;
+    while (cur && cur.parentElement) {
+      cur = cur.parentElement;
+      if (cur.tagName === 'DIV' || cur.tagName === 'SECTION') return cur;
+    }
+    return el; // 안전장치: 못 찾으면 헤딩 자체라도 반환
+  });
+
+  const cardLocator = page.locator(card.asElement());
+  await cardLocator.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300); // 레이아웃 안정화
+
+  await cardLocator.screenshot({ path: outPath });
+}
+
 // ====== (필수) 캡처할 페이지 주소 ======
 const TARGET_URL = "https://cryptokorea.net/etf-flow/";
 
