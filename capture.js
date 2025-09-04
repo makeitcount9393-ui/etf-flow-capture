@@ -61,7 +61,7 @@ async function main() {
   await Promise.race([
     page.waitForSelector('canvas', { timeout: 15000 }).catch(() => {}),
     page.waitForSelector('.echarts, [data-echarts-instance]', { timeout: 15000 }).catch(() => {}),
-    page.waitForTimeout(5000)
+    page.waitForTimeout(10000)
   ]);
 
   // 날짜 기반 폴더 만들기
