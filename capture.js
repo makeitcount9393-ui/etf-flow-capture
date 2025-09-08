@@ -130,6 +130,8 @@ async function chartClipByHeading(page, headingText) {
     page.waitForTimeout(6000)
   ]);
 
+  await page.waitForTimeout(3000);
+
   // 스크롤 초기화(스티키 헤더 간섭 방지)
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
 
